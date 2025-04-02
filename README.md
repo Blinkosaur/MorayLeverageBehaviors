@@ -3,11 +3,14 @@ This repository contains the data and code, describing two genres of leverage be
 
 **Data files:**
 PrefilteredData --> Contains observational counts of all prey handling behaviors observed during a subset of trials
+
 AnchoringData.csv --> Contains all data for Anchoring Behaviors 
+
 KnottingData.csv --> Contains all date for Knotting Behaviors 
 
 **R Code Files**
 Anchoring.RMD --> Contains code for statistical analysis & graphics for Anchoring Behaviors
+
 Knotting.RMD --> Contains code for statistical analysis & graphics for Knotting Behaviors
 
 ### Anchoring Data Column Descriptions ### 
