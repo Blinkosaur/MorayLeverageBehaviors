@@ -1,0 +1,660 @@
+---
+title: "Anchoring"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+
+## Getting Set Up
+Load all these libraries. If they don't work, you have to install them with the code:
+
+*install.packages("package_name")* -- but without the * 
+
+But this an R-Markdown doc, which let's us type normal things without using #'s
+
+To run code, it needs to be in a "code chunk", which you can create by using: *Cmd+Option+I* or insert it manually. 
+
+```{r - Getting Set Up}
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+library(dplyr)
+library(gamlss)
+library(rstatix)
+library(lme4)
+library("emmeans")
+library(MASS)
+library(glmmTMB)
+
+```
+
+
+## Reading in dataset
+Listed Column Names & Descriptions; you can copy-paste column names from here if needed. 
+
+Eel	- Name of the eel 
+
+Exposure - Trial number per that individual 
+
+Date - The date of the trial 
+
+Image - image file name
+
+Observer	- who measured the image
+
+Eel_Total	- total length of eel
+
+Eel_Snout_Vent - snout to vent length of eel
+
+Tube_Length	- total length of the tube, from cap to opening 
+
+Crevice_Length	- length of space within the tube the eel is using (where the snout is at the prey to the end of the tube)
+
+Anchor_Type	- Body, Tail or Both
+
+Body_Number - number of body anchors observed in photo
+
+Anchor 1 data: 
+A1_Length	- length of the first body section of eel pressing against the tube
+A1_Length_Prop	- the proportion of this body section with respect to the total eel length
+A1_Midpoint_Tube	- the position on the tube where the midpoint of the eel's body is
+A1_Tube_Prop - the position along the tube with respect to the total tube length
+A1_Midpoint_Body - the position along the eel body where the midpoint of the anchor is 
+A1_Body_Prop	- the position along the body with respect to the total eel length
+
+[all columns repeated for A2, A3, A4]
+
+Tail_Anchor_Point -	Point on the body/tail that is folded on the tube edge
+TrueTail	- yes/no 
+
+```{r - Reading in dataset}
+getwd()
+
+setwd("/Users/mayamcelfish/Desktop/ArrRrrr/Anchoring")
+
+#Reading in the dataset
+AnchorData = read.csv("~/Desktop/ArrRrrr/Anchoring/data/AnchoringData.csv")
+
+head(AnchorData)
+
+#Making things factors:
+AnchorData$Anchor_Type = factor(AnchorData$Anchor_Type)
+AnchorData$TrueTail = factor(AnchorData$TrueTail)
+
+```
+
+# Here We Go! 
+
+### 1. Anchor Type 
+Frequency of "body", "tail", or "both" categories of anchors 
+
+#### Stats 
+```{r  Anchor Type - STATS}
+## Code Author: Maya McElfish
+
+# Summarize the data to count occurrences of each Anchor_Type
+Anchor_Count <- AnchorData %>%
+  count(Anchor_Type)
+
+Anchor_Count
+
+# Observed counts
+observed <- c(22, 6, 54)
+
+# Total number of observations (sum of all counts)
+total <- sum(observed)
+
+# Chi-Square test for overall difference in categories
+chisq_result <- chisq.test(observed)
+print(chisq_result)
+# p-value = 3.229e-10
+
+# If you want to do pairwise comparisons of proportions:
+# Create a vector of 'trials' where each category has the same total number of trials
+trials <- rep(total, length(observed))
+
+# Perform pairwise proportions test with Bonferroni correction
+pairwise_results <- pairwise.prop.test(observed, trials, p.adjust.method = "bonferroni")
+print(pairwise_results)
+
+```
+#### Results 
+ Pairwise proportions test with Bonferroni adjustment applied.
+
+body v. tail = p-value  = 0.0056
+body v. both = p-value =  3.6e-06 
+tail v. both = p-value =  7.6e-14  
+
+Null Hypothesis: There is NO DIFFERENCE between the frequencies this usage of body, tail, or both
+
+
+#### Graphic
+
+```{r Graphic - Anchor Type}
+## Code Author: Sacha O'Conner
+
+# Add proportions and standard errors
+Anchor_summary <- AnchorData %>%
+  count(Anchor_Type)%>%
+  mutate(percentage = n / sum(n) * 100, proportion = n / sum(n), proportion = n / sum(n),SE = sqrt(proportion * (1 - proportion) / sum(n))) 
+
+# View the summary
+print(Anchor_summary)
+
+# Create the bar graph
+FrequencyofEachAnchorType=
+  Anchor_summary  %>%
+  mutate(Anchor_Type=fct_relevel(Anchor_Type,"body", "tail", "both")) %>% 
+  ggplot(aes(x = Anchor_Type, y = percentage, fill = Anchor_Type)) +
+  geom_bar(stat = "identity", color = "black") + ylim(0,80)+ geom_errorbar(
+    aes(ymin = percentage - SE * 100, ymax = percentage + SE * 100),width = 0.2)+geom_text(
+    aes(label = round(percentage, 2)),
+    vjust = -2.5, 
+    color = "black")+
+  scale_fill_manual(values = c("tail"="#CDBE70","both"="#2F9C95","body"="#EB8A90"))+scale_x_discrete(labels = c("tail" = "Terminal Anchor", "both" = "Both", "body" = "Body Anchor")) +
+labs(x = "Anchor Type", y = "Percent of Total Trials Observed") +
+  theme_classic()+theme(legend.position = "none", axis.title.x = element_blank(), axis.title.y = element_text(size=16),axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+
+FrequencyofEachAnchorType
+
+```
+
+
+### 2. Body Anchor Numbers 
+How many anchor points along the BODY were the eels using? 
+
+#### Stats
+```{r Body Anchor Numbers Stats}
+## Code Author: Maya McElfish
+
+# Summarizing the data to count the number of body anchor points
+BodyNumber_summary <- AnchorData %>%
+  filter(Body_Number %in% c(1,2,3,4)) %>%  #removes all 0's (tail anchors)
+  count(Body_Number)
+
+BodyNumber_summary
+
+# Observed counts
+observed <- c(4, 17, 8, 1)
+
+# Total number of observations 
+total <- sum(observed)
+
+# Chi-Square test for overall difference in categories
+chisq_result <- chisq.test(observed)
+print(chisq_result)
+# p-value = 0.0002333
+
+
+# Create a vector of 'trials' where each category has the same total number of trials
+trials <- rep(total, length(observed))
+
+# Perform pairwise proportions test with Bonferroni correction
+pairwise_results <- pairwise.prop.test(observed, trials, p.adjust.method = "bonferroni")
+
+# Display results
+pairwise_results
+```
+
+#### Results 
+VS. - P-Value
+1:2 - 0.00697 ***
+1:3 - 1.0
+1:4 - 1.0 
+2:3 - 0.21708
+2:4 - 0.00014 ***
+3:4 - 0.18036
+
+#### Graphic
+```{r Body Anchor Numbers Graph}
+## Code Author: Avery McDaniel
+
+# Create the bar graph
+ggplot(BodyNumber_summary, aes(x = Body_Number, y = n, fill = as.factor(Body_Number))) +
+  geom_bar(stat = "identity") +
+  labs(x = "Number of Body Anchors", y = "Frequency", title = "") +
+  theme_classic()
+
+
+# Summarizing the data to count the number of body anchor points
+BodyNumber_summary <- AnchorData %>%
+  filter(Body_Number %in% c(1, 2, 3, 4)) %>%  # Removes all 0's (tail anchors)
+  count(Body_Number) %>%
+  mutate(Percent = n / sum(n) * 100,  # Calculate percentages
+         Proportion = n / sum(n),  # Calculate proportion
+         SE = sqrt(Proportion * (1 - Proportion) / sum(n)))  # Standard error
+
+# Create the bar graph with percentages and error bars
+ggplot(BodyNumber_summary, aes(x = as.factor(Body_Number), y = Percent, fill = as.factor(Body_Number))) +  
+  geom_col() +  # Add this if you're plotting bars
+  scale_fill_manual(values = c("1" = "#FFB17A", "2" = "#84A98C", "3" = "#B48EAE", "4" = "#124E78")) +
+  #geom_text(aes(label = paste0(round(Percent, 1), "%")), vjust = -4.3) +  # Add percentage labels
+  geom_errorbar(aes(ymin = Percent - SE * 100, ymax = Percent + SE * 100), width = 0.1) +  # Add error bars
+  labs(x = "Total Body Anchors Used ", y = "Percentage of Trials", title = "") +
+  theme_classic() +
+  theme(legend.position = "none", 
+        axis.text.x = element_text(size = 14, angle = 0), 
+        axis.text.y = element_text(size = 14), 
+        axis.title.y = element_text(size = 16), 
+        axis.title.x = element_text(size = 16), 
+        plot.title = element_text(size = 17))
+
+```
+
+### 3. True Tail? 
+#### Stats
+```{r - True Tail - Stats}
+## Code Author: Maya McElfish
+
+# Summarize the data to count occurrences of each Anchor_Type
+TrueTail_Count <- AnchorData %>%
+  count(TrueTail)
+
+TrueTail_Count #15 no, #52 yes 
+
+# Observed counts
+observed <- c(15,52)
+
+# Total number of observations (same for each group in your case)
+total <- sum(observed)
+
+# Chi-Square test for overall difference in categories
+chisq_result <- chisq.test(observed)
+print(chisq_result)
+# p-value = 6.176e-06
+
+
+# Create a vector of 'trials' where each category has the same total number of trials
+trials <- rep(total, length(observed))
+
+# Perform pairwise proportions test with Bonferroni correction
+pairwise_results <- pairwise.prop.test(observed, trials, p.adjust.method = "bonferroni")
+
+# Display results
+pairwise_results
+
+```
+#### Results
+No vs Yes Result: 
+p = 5e-10
+
+
+#### Graphic
+```{r - True Tail - Graph}
+## Code Author: Avery McDaniel
+
+# Summarizing data
+Truetail_summary <- AnchorData %>%
+  mutate(TrueTail = ifelse(TrueTail == "yes", "Post-Cloaca (True Tail)", "Pre-Cloaca (Body)")) %>%
+  filter(TrueTail %in% c("Post-Cloaca (True Tail)", "Pre-Cloaca (Body)")) %>%
+  count(TrueTail) %>%
+  mutate(
+    Total = sum(n),  # Total number of observations
+    Proportion = n / Total,
+    Percent = Proportion * 100,
+    SE = sqrt((Proportion * (1 - Proportion)) / Total) * 100  # Standard Error in percentage units
+  )
+
+# Plot with SE bars
+ggplot(Truetail_summary, aes(x = TrueTail, y = Percent, fill = TrueTail)) +
+  geom_bar(stat = "identity") +
+  geom_errorbar(aes(ymin = Percent - SE, ymax = Percent + SE), width = 0.2, color = "black") +  # Add SE bars
+  scale_fill_manual(values = c("Post-Cloaca (True Tail)" = "darkgoldenrod3", "Pre-Cloaca (Body)" = "lightgoldenrod3")) +
+  geom_text(aes(label = paste0(round(Percent, 1), "%")), vjust = -2, size = 4) +  # Add percentage labels
+  labs(
+    x = "",  # Customize x-axis label
+    y = "Percent of Trials",  # Customize y-axis label
+    title = ""  # Add a title if needed
+  ) + 
+  expand_limits(y = max(Truetail_summary$Percent + Truetail_summary$SE) + 5) +  # Adjust Y limit to fit error bars
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(size = 14, angle = 0),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 16),
+    axis.title.x = element_text(size = 16),
+    title = element_text(size = 15),
+    legend.position = "none"
+  )
+
+```
+
+### 4. Body Anchor Lengths 
+How much of the body was being used to form each body anchor? 
+
+#### Stats
+```{r - Body Anchor Lengths - Stats}
+## Code Author: Maya McElfish
+
+Body_Anchor_Lengths <- AnchorData %>% 
+  filter(Anchor_Type %in% c("body", "both")) %>% 
+ dplyr::select(Eel, Anchor_Type, Body_Number, A1_Length_Prop, A2_Length_Prop, A3_Length_Prop) 
+
+Body_Anchor_Lengths
+
+# Pivot 
+Body_Anchor_Length_Pivot <- Body_Anchor_Lengths %>%
+  pivot_longer(cols = c(A1_Length_Prop, A2_Length_Prop, A3_Length_Prop),
+       names_to = "AnchorNumber", 
+       values_to = "Data")
+
+#Factor
+Body_Anchor_Length_Pivot$AnchorNumber = factor(Body_Anchor_Length_Pivot$AnchorNumber)
+
+Body_Anchor_Length_Pivot 
+
+glmm_anchor_length <- glmmTMB(Data ~ AnchorNumber + (1 | Eel), 
+                      family = beta_family(link = "logit"), 
+                      data = Body_Anchor_Length_Pivot)
+
+# Obtain the estimated marginal means (EMMs) for 'AnchorNumber'
+emm_results <- emmeans(glmm_anchor_length, ~ AnchorNumber)
+
+# Perform pairwise comparisons using the emmeans results
+pairwise_comparisons <- contrast(emm_results, method = "pairwise")
+
+# Display the pairwise comparisons results
+summary(pairwise_comparisons)
+```
+#### Results
+
+NSD between 1:2, 2:3, and 1:3
+
+#### Graphics 
+```{r - Body Anchor Lengths - Graphics} 
+## Code Author: Sacha O'Conner 
+
+Body_Anchor_Lengths <- AnchorData %>% 
+  dplyr::select(A1_Length_Prop, A2_Length_Prop, A3_Length_Prop) 
+
+Body_Anchor_Length_Pivot <- Body_Anchor_Lengths %>%
+  dplyr::select(A1_Length_Prop, A2_Length_Prop, A3_Length_Prop)%>%
+  pivot_longer(cols = everything(),
+       names_to = "AnchorNumber", 
+       values_to = "Data")
+
+#Factor
+Body_Anchor_Length_Pivot$AnchorNumber = factor(Body_Anchor_Length_Pivot$AnchorNumber)
+
+# Calculating Means & SE
+Body_Anchor_Length_Mean = Body_Anchor_Length_Pivot %>%
+  group_by(AnchorNumber) %>%
+  summarize(
+    mean = mean(Data, na.rm = TRUE) * 100,
+    sd = sd(Data, na.rm = TRUE),
+    n = n(),
+    se = sd / sqrt(n) * 100)
+
+BodyAnchorLength=
+  ggplot(Body_Anchor_Length_Mean, aes(x = AnchorNumber, y = mean, fill = AnchorNumber)) +
+  geom_bar(stat = "identity", color = "black") +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.1) +
+  geom_text( aes(label = round(mean, 2)), vjust = -1.5, color = "black") +
+  scale_fill_manual( values = c(
+      "A1_Length_Prop" = "#FFB17A",
+      "A2_Length_Prop" = "#84A98C",
+      "A3_Length_Prop" = "#B48EAE"),
+    labels = c("A1_Length_Prop" = "First Anchor", "A2_Length_Prop" = "Second Anchor", "A3_Length_Prop" = "Third Anchor")) +
+  scale_x_discrete(labels = c("A1_Length_Prop" = "First Anchor", "A2_Length_Prop" = "Second Anchor", "A3_Length_Prop" = "Third Anchor")) +
+  labs(x = "none", y = "Percent of Eel Body Used",) + 
+  theme_classic()+theme(legend.position="none", axis.title.x = element_blank(), axis.title.y = element_text(size=16),axis.text.x = element_text(size=14), axis.text.y = element_text(size=14))
+
+BodyAnchorLengths
+
+```
+
+
+### 5. Anchor Midpoints with respect to eel body
+Where along the eel was each anchor point? 
+
+#### Stats
+```{r Anchor midpoint along body - stats}
+## Code Author: Maya McElfish
+
+# Making a new dataframe - filtering & selecting what we want, renaming columns
+MidEel_Points <- AnchorData %>% 
+  filter(Anchor_Type %in% c("body", "both")) %>% 
+   dplyr::select(Eel, Anchor_Type, Body_Number, A1_Body_Prop, A2_Body_Prop, A3_Body_Prop) %>% 
+  rename("First Anchor" = A1_Body_Prop, "Second Anchor" = A2_Body_Prop, "Third Anchor" = A3_Body_Prop)
+
+# look at the new dataframe
+MidEel_Points 
+
+# Pivot to long format - we are putting all our anchor columns into a new column named "BodyMidpoint" and the data from the old columns is getting shuffled into a new column called "Data" 
+MidEel_Points_Pivot <- MidEel_Points  %>%
+  pivot_longer(cols = c("First Anchor", "Second Anchor", "Third Anchor"),
+       names_to = "BodyMidpoint", 
+       values_to = "Data") %>%
+  drop_na(Data) # removing any rogue NA's 
+
+
+# SUMMARY STATISICS 
+# Calculating the mean & SE for MidTube Anchors 
+MidpointBody_MeanSE <- MidEel_Points_Pivot %>%
+  group_by(BodyMidpoint) %>%
+  summarize(mean = mean(Data, na.rm = TRUE),
+            sd = sd(Data, na.rm = TRUE),
+            n = n(),
+            se = sd/sqrt(n))
+
+MidpointBody_MeanSE
+
+
+# STATISTICAL ANALYSIS
+
+# Some values are a hair over 1 -- the data was size-corrected in proportion to the eel length. Because most of the time, it's the true body (not tail) that is used in body anchors, I scaled the midpoints with respect to the snout:vent length (excludes tail length) instead of to total body length (includes tail length). However 5 data points were over 1 because a small part of the tail was included in that anchor. This line of code has all of our values greater than 1 be set to 0.999999 instead for the analysis
+
+MidEel_Points_Pivot$Data[MidEel_Points_Pivot$Data > 1] <- 0.9999
+
+
+# This is a Generalized Linear Mixed Model - a type of statistical analysis.
+
+# The RESPONSE variable is "Data" -- this is where we expect to see variation...the midpoint values vary. 
+
+# The  PREDICTOR variable is "BodyMidpoint" - we are predicting that our midpoint values in Data are going to vary based on which Anchor they are associated with (Anchor 1, 2, or 3). 
+
+# The data might also vary for other reasons...like....maybe Bill acts differently than Ernie. This is something called a Random Effect - we're not out here to test eel personality, but it may play a part so we can build it into our model. 
+
+glmm_midpoint_body <- glmmTMB(Data ~ BodyMidpoint + (1 | Eel), 
+                      family = beta_family(link = "logit"), 
+                      data = MidEel_Points_Pivot)
+
+# Statistical Output
+summary(glmm_midpoint_body)
+
+# Estimated marginal means for BodyMidpoint
+emm_model <- emmeans(glmm_midpoint_body, ~ BodyMidpoint)
+
+# Pairwise comparisons -- we can look at the contrasts between each anchor and see if they are significantly different 
+
+pairs(emm_model) # we see all contrasts are significantly different with p < 0.0001 --- each anchor is unique in its placement along the body
+
+# Simulate residuals
+sim_res <- simulateResiduals(glmm_midpoint_body)
+
+# Plot residuals
+plot(sim_res)
+
+# Test for overdispersion
+testDispersion(sim_res)
+
+# Test for uniformity of residuals
+testUniformity(sim_res)
+
+# Test for zero-inflation (if applicable)
+testZeroInflation(sim_res)
+```
+
+#### Results
+1:2 = <.0001
+1:3 = <.0001
+2:3 = <.0001
+
+Midpoints of each anchor are uniquely placed along the body
+
+#### Graphic
+```{r Anchor midpoint along body - graph}
+## Code Author: Maya McElfish
+
+### THE GRAPH
+BodyMidPoint_Box <- MidEel_Points_Pivot %>% 
+  ggplot(aes(x = BodyMidpoint, y = Data, fill = BodyMidpoint)) +
+  geom_boxplot() +
+  geom_jitter(aes(color = as.factor(Body_Number)), width = 0.2, alpha = 1) + 
+  stat_summary(fun = "mean", geom = "point", shape = 8, 
+               size = 2, color = "white") +
+  labs(y = "Anchor Midpoint Along Eel Body", x = "", title = "") +
+  scale_fill_manual(values = c(  # Custom colors for Treatment
+    "First Anchor" = "#FFB17A",
+    "Second Anchor" = "#84A98C",
+    "Third Anchor" = "#B48EAE")) +
+  scale_color_manual(values = c(  # Custom colors for jitter points
+    "1" = "orange3",
+    "2" = "green4",
+    "3" = "purple3")) +
+  theme_classic() +
+  theme(axis.text.x = element_text(size = 10, angle = 0),
+        axis.text.y = element_text(size = 10),
+        axis.title.y = element_text(size = 15),
+        legend.position = "none")
+
+#"1" = "#124E78", "2" = "#B48EAE", "3" = "#84A98C", "4" = "#FFB17A")
+
+BodyMidPoint_Box
+
+ggsave("BodyMidPoint.png", plot = BodyMidPoint_Box, width = 5, height = 4, dpi = 500)
+```
+
+### 6. Midpoint to Midpoint/Harmonics?
+
+#### Stats
+```{r Midpoint to Midpoint - Stats}
+## Code Author: Maya McElfish
+
+Mid2Mid <- AnchorData %>% 
+  filter(Anchor_Type %in% c("body", "both")) %>% 
+   dplyr::select(Eel, Anchor_Type, Body_Number, Origin_One_Prop, One_Two_Prop, Two_Three_Prop) %>% 
+  rename("Origin to One" = Origin_One_Prop, "One to Two" = One_Two_Prop, "Two to Three" = Two_Three_Prop)
+
+Harmonics_Pivot <- Mid2Mid %>%
+  pivot_longer(cols = c("Origin to One", "One to Two", "Two to Three"),
+       names_to = "AnchorProportions", 
+       values_to = "Data") %>%
+  drop_na(Data) # removing any rogue NA's 
+
+
+# Calculating the mean & SE for Mid2Mid
+Mid2Mid_MeanSE <- Mid2Mid_Pivot %>%
+  group_by(Mid2MidDist) %>%
+  summarize(mean = mean(Data, na.rm = TRUE),
+            sd = sd(Data, na.rm = TRUE),
+            n = n(),
+            se = sd/sqrt(n))
+
+head(Mid2Mid_MeanSE)
+
+
+glmm_harmonics_body <- glmmTMB(Data ~ AnchorProportions + (1 | Eel), 
+                      family = beta_family(link = "logit"), 
+                      data = Harmonics_Pivot)
+
+# Statistical Output
+summary(glmm_harmonics_body)
+
+# Estimated marginal means for BodyMidpoint
+emm_model <- emmeans(glmm_harmonics_body, ~ AnchorProportions)
+
+pairs(emm_model)
+
+
+# Simulate residuals
+sim_res <- simulateResiduals(glmm_harmonics_body)
+# Plot residuals
+plot(sim_res)
+# Test for overdispersion
+testDispersion(sim_res)
+# Test for uniformity of residuals
+testUniformity(sim_res)
+# Test for zero-inflation (if applicable)
+testZeroInflation(sim_res)
+```
+#### Results
+Origin-One vs One-Two = 0.0275
+One-Two vs Two-Three = 0.7698
+Origin-One vs Two-Three = 0.4882
+
+#### Graphic 
+```{r Midpoint to Midpoint - graph}
+## Code Author: Avery McDaniel
+
+### THE GRAPH
+Harmonics_Plot <- Anchor_Point_Pivot %>% 
+  mutate(AnchorProportions = fct_relevel(AnchorProportions,"Origin to One","One to Two", "Two to Three" ))  %>% 
+ggplot(aes(x = AnchorProportions, y = Data, fill = AnchorProportions)) +  
+  geom_boxplot(alpha = 1) +  # Transparent boxplots for better visibility
+  geom_jitter(aes(color = as.factor(Body_Number)), width = 0.2, alpha = 1) +  # Jitter for individual points
+  stat_summary(fun = "mean", geom = "point", shape = 8, size = 2, color = "white") +  # Mean markers
+  scale_fill_manual(values = c(  # Colors for boxplots
+    "Origin to One" = "#FFB17A",
+    "One to Two" = "#84A98C",
+    "Two to Three" = "#B48EAE"
+  )) +
+  scale_color_manual(values = c("1" = "orange3", "2" = "green4", "3" = "purple3", "4" = "#DC143C")) +
+  
+  labs(
+    x = "",
+    y = "Proportion",
+    title = ""
+  ) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 16),
+    axis.title.x = element_text(size = 16),
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 12),
+    legend.position = "none")  # This removes the legend
+
+Harmonics_Plot
+```
+
+### 7. MISC & Graveyard
+
+```{r}
+## ggplot shapes
+help(shape)
+
+# A look at all 25 symbols
+df2 <- data.frame(x = 1:5 , y = 1:25, z = 1:25)
+p <- ggplot(df2, aes(x, y))
+p + geom_point(aes(shape = z), size = 4) +
+  scale_shape_identity()
+```
+
+```{r -- linear regression }
+# Fit a linear regression model
+model <- lm(A1_Tube_Prop ~ A1_Body_Prop, data = AnchorData)
+
+# Summary of the model
+summary(model)
+
+
+ggplot(AnchorData, aes(x = A1_Tube_Prop, y = A1_Body_Prop)) +
+  geom_point() +                    # Plot data points
+  geom_smooth(method = "lm", se = TRUE, color = "blue") + # Add regression line
+  labs(x = "Position Along Crevice",
+       y = "Position Along Body",
+       title = "Relationship Between Crevice and Body Anchor Points") +
+  theme_minimal()
+
+```
+
