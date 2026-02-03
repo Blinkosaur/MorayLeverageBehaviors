@@ -67,3 +67,10 @@ TrueTail - was the location of the Terminal Anchor on the true tail (Yes) or bod
 
 ### Knotting Data Column Descriptions ### 
 * Below are the columns and contents of KnottingData.csv
+
+Eel_Name - The moray being observed
+Observer - The individual research collecting data
+Trial_Date - The date of the trial
+Knot_type - The knot being tied (overhand, double overhand, or figure eight)
+Bout Order - Within a trial, if the eel tied more than 1 knot, we recorded if this was the first, second, third bout of knotting
+Knotting_Duration - How long the eel was engaged in forming and using the knot, in seconds
